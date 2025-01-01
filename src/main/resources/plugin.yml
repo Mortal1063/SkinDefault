@@ -5,3 +5,10 @@ api-version: 1.13
 author: Mortal
 description: "一个能设置玩家默认皮肤的插件"
 depend: [ "SkinsRestorer" ]
+commands:
+  sd:
+    description: Reload Config
+    usage: /sd
+  skindefault:
+    description: Reload Config
+    usage: /skindefault

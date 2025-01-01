@@ -5,4 +5,9 @@
 
 **这是一个基于[SkinRestorer](https://github.com/SkinsRestorer/SkinsRestorer/)开发的一个设置玩家进入服务器默认皮肤的插件，非常有效的解决了[BetterHud](https://github.com/toxicity188/BetterHud/)在离线版的情况下玩家可能无法获取头像的问题**
 
-**如果觉得还可以的话麻烦给[这个项目](https://github.com/Mortal1063/SkinDefault)点一个Star吧**
+##  版本更新
+**1.01：优化屎山代码，更新随机皮肤功能，更新配置文件缓存指令/sd以及/skindefsult，更新版本至1.01**
+
+**1.00：一个能设置玩家默认皮肤的插件**
+
+### 如果觉得还可以的话麻烦给[这个项目](https://github.com/Mortal1063/SkinDefault)点一个Star吧
