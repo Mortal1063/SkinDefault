@@ -6,7 +6,7 @@
 
     <groupId>com.ggzzll</groupId>
     <artifactId>SkinDefault</artifactId>
-    <version>1.01</version>
+    <version>1.02</version>
     <packaging>jar</packaging>
 
     <name>SkinDefault</name>
@@ -81,6 +81,11 @@
             <artifactId>skinsrestorer-api</artifactId>
             <version>15.5.1</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.11.0</version>
         </dependency>
     </dependencies>
 </project>

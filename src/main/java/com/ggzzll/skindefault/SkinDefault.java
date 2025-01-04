@@ -1,12 +1,16 @@
 package com.ggzzll.skindefault;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.skinsrestorer.api.SkinsRestorer;
 import net.skinsrestorer.api.SkinsRestorerProvider;
 import net.skinsrestorer.api.VersionProvider;
+import net.skinsrestorer.api.exception.DataRequestException;
 import net.skinsrestorer.api.property.InputDataResult;
+import net.skinsrestorer.api.property.MojangSkinDataResult;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -14,12 +18,17 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Optional;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 public final class SkinDefault extends JavaPlugin implements Listener {
 
-    YamlConfiguration Config;
+    FileConfiguration Config = getConfig();
     private SkinsRestorer SkinsRestorerAPI;
 
     @Override
@@ -35,11 +44,30 @@ public final class SkinDefault extends JavaPlugin implements Listener {
         }
         saveDefaultConfig();
 
-        File File = new File(getDataFolder(), "config.yml");
-        Config = YamlConfiguration.loadConfiguration(File);
-
         SkinsRestorerAPI = SkinsRestorerProvider.get();
         getLogger().info(getDescription().getName() + " 初始化完成！");
+
+        if (Config.getBoolean("Auto-Updates")){
+            String apiUrl = "https://gitee.com/api/v5/repos/Mortal1063/SkinDefault/tags";
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                    JsonObject Data = JsonParser.parseString(in.lines().collect(Collectors.joining())).getAsJsonArray().get(0).getAsJsonObject();
+
+                    if (!Data.get("name").getAsString().equals(getDescription().getVersion())) {
+                        getLogger().info("版本更新，更新地址: https://gitee.com/Mortal1063/SkinDefault/releases/, 更新内容: " + Data.get("message").getAsString());
+                    }
+
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -49,8 +77,8 @@ public final class SkinDefault extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender Sender, @NotNull Command Command, @NotNull String Label, String[] Args) {
         if (Sender.hasPermission("SkinDefault.Reload")) {
 
-            File File = new File(getDataFolder(), "config.yml");
-            Config = YamlConfiguration.loadConfiguration(File);
+            reloadConfig();
+            Config = getConfig();
 
             Sender.sendMessage("插件配置重载完成");
             return true;
@@ -68,16 +96,57 @@ public final class SkinDefault extends JavaPlugin implements Listener {
 
         if (SkinsRestorerAPI.getPlayerStorage().getSkinOfPlayer(Player.getUniqueId()).isEmpty()){
 
-            String SkinDefault = Config.getStringList("SkinDefault").get((int)(Math.random() * Config.getStringList("SkinDefault").size()));
-            Optional<InputDataResult> SteveSkin = SkinsRestorerAPI.getSkinStorage().findSkinData(SkinDefault);
+            String SkinName = Config.getStringList("SkinDefault").get(new Random().nextInt(Config.getStringList("SkinDefault").size()));
+            Optional<InputDataResult> PlayerSkin = SkinsRestorerAPI.getSkinStorage().findSkinData(SkinName);
 
-            if (SteveSkin.isEmpty()) {
-                getLogger().info(" 玩家 " + Player.getName() + " 在进入服务器时设置 " + SkinDefault + "皮肤失败，原因：皮肤ID不存在");
-                return;
+            if (PlayerSkin.isEmpty()) {
+
+                try {
+                    Optional<MojangSkinDataResult> MojangPlayerSkin = SkinsRestorerAPI.getSkinStorage().getPlayerSkin(SkinName, true);
+
+                    if (MojangPlayerSkin.isEmpty()) {
+
+                        getLogger().info(" 玩家 " + Player.getName() + " 在进入服务器时设置 " + SkinName + "皮肤失败，原因：皮肤ID不存在");
+                        return;
+
+                    } else {
+
+                        MojangSkinDataResult MojangPlayer = MojangPlayerSkin.get();
+
+                        String apiUrl = "https://api.mojang.com/user/profile/" + MojangPlayer.getUniqueId();
+                        HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+                        connection.setRequestMethod("GET");
+                        connection.setConnectTimeout(5000);
+                        connection.setReadTimeout(5000);
+
+                        String MojangPlayerName;
+                        try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+
+                            MojangPlayerName = JsonParser.parseString(in.lines().collect(Collectors.joining())).getAsJsonObject().get("name").getAsString();
+
+                            SkinsRestorerAPI.getSkinStorage().setPlayerSkinData(MojangPlayer.getUniqueId(), MojangPlayerName, MojangPlayer.getSkinProperty(), System.currentTimeMillis());
+
+                        }
+
+                        PlayerSkin = SkinsRestorerAPI.getSkinStorage().findSkinData(MojangPlayerName);
+
+                    }
+
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
             }
 
-            SkinsRestorerAPI.getPlayerStorage().setSkinIdOfPlayer(Player.getUniqueId(), SteveSkin.get().getIdentifier());
-            getLogger().info(" 玩家 " + Player.getName() + " 在进入服务器时设置 " + SkinDefault + "皮肤成功");
+            SkinsRestorerAPI.getPlayerStorage().setSkinIdOfPlayer(Player.getUniqueId(), PlayerSkin.get().getIdentifier());
+
+            try {
+                SkinsRestorerAPI.getSkinApplier(Player.class).applySkin(Player);
+            } catch (DataRequestException e) {
+                throw new RuntimeException(e);
+            }
+
+            getLogger().info(" 玩家 " + Player.getName() + " 在进入服务器时设置 " + SkinName + "皮肤成功");
         }
     }
 
